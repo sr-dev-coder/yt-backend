@@ -2,7 +2,22 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js"
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
+
+const generateAccessAndRefreshToken = async(userId) =>{
+    try{
+        const user = await User.findById(userId);
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+
+        user.refreshToken = refreshToken;
+        await user.save({ validateBeforeSave: true })
+
+        return { accessToken, refreshToken }
+    }catch(error){
+        throw new ApiError(500, "Something weng wrong while generate Access and Refresh token.")
+    }
+}
 
 const registerUser = asyncHandler( async (req, res)=>{    
     //get user details from frontend
@@ -90,12 +105,49 @@ const loginUser = asyncHandler(async (req, res)=>{
     }
 
     //access and refresh token
+    const { refreshToken, accessToken } = await generateAccessAndRefreshToken(user._id)
+
+    const loggedInUser = await User.findOne(user._id).select("-password -refreshToken")
 
     // send cookeis
-    
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
     // response send
-
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+        new ApiResponse(200,{ user: loggedInUser, accessToken, refreshToken}, "User logged in successfully")
+    )
 
 })
 
-export { registerUser }
+const logoutUser = asyncHandler(async(req, res)=>{
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set:{
+                refreshToken: undefined
+            }
+        },
+        {
+            new: true
+        }
+    )
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged Out"))
+
+})
+
+export { registerUser, loginUser, logoutUser }
