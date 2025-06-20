@@ -318,7 +318,7 @@ export {
     logoutUser, 
     refreshAccessToken,
     changeUserPassword, 
-    getCurrentUser, 
+    getCurrentUser,  
     updateAccountDetails,
     updateUserAvatar,
     updateUserCoverImage 
